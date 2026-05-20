@@ -1,0 +1,12 @@
+User-agent: *
+Allow: /
+
+# Public content — indexed
+Allow: /blog/
+Allow: /blog
+
+# Private pages — no SEO value
+Disallow: /group/
+Disallow: /groups
+
+Sitemap: https://split-expense.com/sitemap.xml
