@@ -1,4 +1,4 @@
-import { configureStore } from '@reduxjs/toolkit';
+import { configureStore, combineReducers } from '@reduxjs/toolkit';
 import userReducer from './slices/userSlice';
 import groupsReducer from './slices/groupsSlice';
 import expensesReducer from './slices/expensesSlice';
@@ -50,16 +50,18 @@ function saveState(state: ReturnType<typeof store.getState>) {
   }
 }
 
+const rootReducer = combineReducers({
+  user: userReducer,
+  groups: groupsReducer,
+  expenses: expensesReducer,
+  ui: uiReducer,
+  sync: syncReducer,
+});
+
 const preloadedState = loadState();
 
 export const store = configureStore({
-  reducer: {
-    user: userReducer,
-    groups: groupsReducer,
-    expenses: expensesReducer,
-    ui: uiReducer,
-    sync: syncReducer,
-  },
+  reducer: rootReducer,
   preloadedState,
 });
 

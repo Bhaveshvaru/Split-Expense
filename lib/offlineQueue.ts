@@ -62,7 +62,8 @@ function save(ops: QueuedOp[]): void {
   } catch {}
 }
 
-type EnqueueInput = Omit<QueuedOp, 'id' | 'timestamp'>;
+type DistributedOmit<T, K extends keyof any> = T extends any ? Omit<T, K> : never;
+type EnqueueInput = DistributedOmit<QueuedOp, 'id' | 'timestamp'>;
 
 function genId(): string {
   if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID();
