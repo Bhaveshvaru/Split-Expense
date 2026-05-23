@@ -1,9 +1,9 @@
 'use client';
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { v4 as uuidv4 } from 'uuid';
 import { closeAddExpense } from '../../store/slices/uiSlice';
-import { createExpenseAsync, addExpenseLocal, updateExpenseAsync, updateExpenseLocal, type CreateExpenseInput } from '../../store/slices/expensesSlice';
+import { addExpenseLocal, updateExpenseLocal } from '../../store/slices/expensesSlice';
 import { updateGroupTotal } from '../../store/slices/groupsSlice';
 import type { AppDispatch, RootState } from '../../store';
 import type { Group, SplitType, ExpenseCategory } from '../../types';
@@ -36,7 +36,6 @@ export function AddExpenseModal({ group, onClose }: Props) {
   const [category, setCategory] = useState<ExpenseCategory>(editingExpense?.category || 'general');
   const [date, setDate] = useState(editingExpense ? editingExpense.date.substring(0, 10) : new Date().toISOString().substring(0, 10));
   const [customSplits, setCustomSplits] = useState<Record<string, string>>({});
-  const [loading, setLoading] = useState(false);
 
   const close = () => { dispatch(closeAddExpense()); onClose(); };
   const parsedAmount = parseFloat(amount) || 0;
@@ -46,59 +45,45 @@ export function AddExpenseModal({ group, onClose }: Props) {
     splitType === 'percentage' ? Math.abs(splitTotal - 100) < 0.01 : Math.abs(splitTotal - parsedAmount) < 0.02
   );
 
-  const handleSubmit = async () => {
+  const handleSubmit = () => {
     if (!title.trim()) return toast.error('Please enter a title');
     if (!parsedAmount || parsedAmount <= 0) return toast.error('Enter a valid amount');
     if (!paidBy) return toast.error('Select who paid');
     if (!splitValid) return toast.error(splitType === 'percentage' ? 'Percentages must add up to 100%' : 'Amounts must equal total');
 
-    setLoading(true);
-    try {
-      const payer = group.members.find(m => m.id === paidBy)!;
-      let splits;
-      if (splitType === 'equal') {
-        splits = calculateEqualSplits(parsedAmount, group.members);
-      } else {
-        splits = group.members.map(m => ({
-          memberId: m.id, memberName: m.name,
-          amount: splitType === 'percentage'
-            ? Math.round(parsedAmount * (parseFloat(customSplits[m.id] || '0') / 100) * 100) / 100
-            : parseFloat(customSplits[m.id] || '0'),
-          percentage: splitType === 'percentage' ? parseFloat(customSplits[m.id] || '0') : undefined,
-        }));
-      }
+    const payer = group.members.find(m => m.id === paidBy)!;
+    let splits;
+    if (splitType === 'equal') {
+      splits = calculateEqualSplits(parsedAmount, group.members);
+    } else {
+      splits = group.members.map(m => ({
+        memberId: m.id, memberName: m.name,
+        amount: splitType === 'percentage'
+          ? Math.round(parsedAmount * (parseFloat(customSplits[m.id] || '0') / 100) * 100) / 100
+          : parseFloat(customSplits[m.id] || '0'),
+        percentage: splitType === 'percentage' ? parseFloat(customSplits[m.id] || '0') : undefined,
+      }));
+    }
 
-      const expenseData = {
-        groupId: group.groupId, title: title.trim(), amount: parsedAmount,
-        currency: group.currency, paidBy, paidByName: payer.name,
-        splitType, splits, category, date: new Date(date).toISOString(),
-        isSettled: false,
-      };
+    const expenseBase = {
+      groupId: group.groupId, title: title.trim(), amount: parsedAmount,
+      currency: group.currency, paidBy, paidByName: payer.name,
+      splitType, splits, category, date: new Date(date).toISOString(),
+      isSettled: false,
+    };
 
-      if (editingId && editingExpense) {
-        const result = await dispatch(updateExpenseAsync({ expenseId: editingId, data: expenseData }));
-        if (updateExpenseAsync.fulfilled.match(result)) {
-          dispatch(updateGroupTotal({ groupId: group.groupId, delta: parsedAmount - editingExpense.amount }));
-          toast.success('Expense updated ✓');
-        } else {
-          dispatch(updateExpenseLocal({ ...expenseData, expenseId: editingId, createdAt: editingExpense.createdAt }));
-          toast.success('Updated locally');
-        }
-      } else {
-        const localId = uuidv4();
-        const result = await dispatch(createExpenseAsync({ ...expenseData, _localId: localId } as CreateExpenseInput));
-        if (createExpenseAsync.fulfilled.match(result)) {
-          dispatch(updateGroupTotal({ groupId: group.groupId, delta: parsedAmount }));
-          toast.success('Expense added ✓');
-        } else {
-          const localExpense = { ...expenseData, expenseId: localId, createdAt: new Date().toISOString() };
-          dispatch(addExpenseLocal(localExpense));
-          dispatch(updateGroupTotal({ groupId: group.groupId, delta: parsedAmount }));
-          toast.success('Saved locally — will sync when online 💾');
-        }
-      }
-      close();
-    } finally { setLoading(false); }
+    if (editingId && editingExpense) {
+      dispatch(updateExpenseLocal({ ...expenseBase, expenseId: editingId, createdAt: editingExpense.createdAt }));
+      dispatch(updateGroupTotal({ groupId: group.groupId, delta: parsedAmount - editingExpense.amount }));
+      toast.success('Expense updated ✓');
+    } else {
+      const expenseId = uuidv4();
+      dispatch(addExpenseLocal({ ...expenseBase, expenseId, createdAt: new Date().toISOString() }));
+      dispatch(updateGroupTotal({ groupId: group.groupId, delta: parsedAmount }));
+      toast.success('Expense added ✓');
+    }
+
+    close();
   };
 
   return (
@@ -177,7 +162,6 @@ export function AddExpenseModal({ group, onClose }: Props) {
               ))}
             </div>
 
-            {/* Custom split inputs */}
             {splitType !== 'equal' && parsedAmount > 0 && (
               <div className="mt-3 space-y-2">
                 <div className="flex items-center justify-between">
@@ -212,10 +196,8 @@ export function AddExpenseModal({ group, onClose }: Props) {
 
         <div className="flex gap-3 mt-4">
           <button onClick={close} className="btn-secondary flex-1">Cancel</button>
-          <button onClick={handleSubmit} disabled={loading || !splitValid}
-            className="btn-primary flex-1 disabled:opacity-40">
-            {loading ? <span className="flex items-center gap-2"><span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />{editingId ? 'Updating...' : 'Adding...'}</span>
-              : editingId ? '✓ Update Expense' : '+ Add Expense'}
+          <button onClick={handleSubmit} disabled={!splitValid} className="btn-primary flex-1 disabled:opacity-40">
+            {editingId ? '✓ Update Expense' : '+ Add Expense'}
           </button>
         </div>
       </div>

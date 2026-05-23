@@ -4,14 +4,11 @@ import { Provider, useSelector } from 'react-redux';
 import { store } from '../store';
 import type { RootState } from '../store';
 import { initGuest } from '../store/slices/userSlice';
-import { useNetworkSync } from '../hooks/useNetworkSync';
-import { OfflineBar } from '../components/ui/OfflineBar';
 
 function AppInitializer({ children }: { children: React.ReactNode }) {
   const initialized = useRef(false);
   const darkMode = useSelector((s: RootState) => s.user.darkMode);
 
-  // One-time app init
   useEffect(() => {
     if (!initialized.current) {
       initialized.current = true;
@@ -19,7 +16,6 @@ function AppInitializer({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  // Sync darkMode → <html class="dark"> on every change
   useEffect(() => {
     if (darkMode) {
       document.documentElement.classList.add('dark');
@@ -28,14 +24,7 @@ function AppInitializer({ children }: { children: React.ReactNode }) {
     }
   }, [darkMode]);
 
-  useNetworkSync();
-
-  return (
-    <>
-      <OfflineBar />
-      {children}
-    </>
-  );
+  return <>{children}</>;
 }
 
 export function Providers({ children }: { children: React.ReactNode }) {

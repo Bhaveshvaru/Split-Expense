@@ -11,7 +11,7 @@ const inter = Inter({
 })
 
 export const metadata: Metadata = {
-  metadataBase: new URL('https://split-expense.com'),
+  metadataBase: new URL('https://split-expense.in'),
   title: {
     default: 'SplitEase — Free Expense Splitter, No Login Required',
     template: '%s | SplitEase',
@@ -47,7 +47,7 @@ export const metadata: Metadata = {
   openGraph: {
     type: 'website',
     locale: 'en_IN',
-    url: 'https://split-expense.com',
+    url: 'https://split-expense.in',
     siteName: 'SplitEase',
     title: 'SplitEase — Split Expenses Instantly, No Login Required',
     description:
@@ -69,7 +69,7 @@ export const metadata: Metadata = {
     images: ['/og-image.png'],
   },
   alternates: {
-    canonical: 'https://split-expense.in',
+    canonical: 'https://split-expense.in/',
   },
   manifest: '/manifest.json',
   icons: {
@@ -95,7 +95,7 @@ const jsonLd = {
   '@context': 'https://schema.org',
   '@type': 'WebApplication',
   name: 'SplitEase',
-  url: 'https://split-expense.in',
+  url: 'https://split-expense.in/',
   description:
     'Free online expense splitter with UPI payment support. No login required.',
   applicationCategory: 'FinanceApplication',
@@ -111,7 +111,7 @@ const jsonLd = {
     'Offline support',
     'Smart settlement algorithm',
   ],
-  screenshot: 'https://split-expense.com/screenshot.png',
+  screenshot: 'https://split-expense.in/screenshot.png',
   aggregateRating: {
     '@type': 'AggregateRating',
     ratingValue: '4.9',
@@ -139,12 +139,7 @@ export default function RootLayout({
           crossOrigin='anonymous'
         />
         <link rel='dns-prefetch' href='//fonts.googleapis.com' />
-        <link
-          rel='icon'
-          href='/favicon.svg'
-          type='image/svg+x       
-          +ml'
-        />
+        <link rel='icon' href='/favicon.svg' type='image/svg+xml' />
       </head>
       <body
         className={`${inter.variable} font-sans bg-surface-950 text-slate-100 antialiased`}

@@ -2,7 +2,7 @@
 import { useDispatch } from 'react-redux';
 import type { AppDispatch } from '../../store';
 import type { Expense, Member } from '../../types';
-import { deleteExpenseAsync, removeExpenseLocal } from '../../store/slices/expensesSlice';
+import { removeExpenseLocal } from '../../store/slices/expensesSlice';
 import { updateGroupTotal } from '../../store/slices/groupsSlice';
 import { setEditingExpense } from '../../store/slices/uiSlice';
 import { formatCurrency } from '../../lib/settlement';
@@ -24,16 +24,11 @@ interface Props {
 export function ExpenseList({ expenses, members, currency, groupId, onAdd }: Props) {
   const dispatch = useDispatch<AppDispatch>();
 
-  const handleDelete = async (expense: Expense) => {
+  const handleDelete = (expense: Expense) => {
     if (!confirm(`Delete "${expense.title}"?`)) return;
-    try {
-      await dispatch(deleteExpenseAsync({ expenseId: expense.expenseId, groupId }));
-      dispatch(updateGroupTotal({ groupId, delta: -expense.amount }));
-      toast.success('Expense deleted');
-    } catch {
-      dispatch(removeExpenseLocal({ expenseId: expense.expenseId, groupId }));
-      toast.success('Expense removed');
-    }
+    dispatch(removeExpenseLocal({ expenseId: expense.expenseId, groupId }));
+    dispatch(updateGroupTotal({ groupId, delta: -expense.amount }));
+    toast.success('Expense deleted');
   };
 
   if (expenses.length === 0) {

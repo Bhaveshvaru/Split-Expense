@@ -1,12 +1,11 @@
 'use client';
 import { useState, useEffect } from 'react';
-import { useDispatch, useSelector } from 'react-redux';
+import { useDispatch } from 'react-redux';
 import { closeSettlement } from '../../store/slices/uiSlice';
-import type { AppDispatch, RootState } from '../../store';
+import type { AppDispatch } from '../../store';
 import type { Group, Transaction, Balance } from '../../types';
 import { formatCurrency } from '../../lib/settlement';
 import { generateUPILink, generateUPIQRCode, copyUPILink, isValidUPIId } from '../../lib/upi';
-import { apiClient } from '../../lib/api';
 import toast from 'react-hot-toast';
 
 interface Props {
@@ -18,7 +17,6 @@ interface Props {
 
 export function SettlementModal({ group, transactions, balances, onClose }: Props) {
   const dispatch = useDispatch<AppDispatch>();
-  const guestSessionId = useSelector((s: RootState) => s.user.guestSessionId);
   const [settledIds, setSettledIds] = useState<Set<number>>(new Set());
   const [activeQR, setActiveQR] = useState<number | null>(null);
   const [qrDataUrl, setQRDataUrl] = useState<string | null>(null);
@@ -26,18 +24,7 @@ export function SettlementModal({ group, transactions, balances, onClose }: Prop
 
   const close = () => { dispatch(closeSettlement()); onClose(); };
 
-  const handleMarkPaid = async (tx: Transaction, idx: number) => {
-    try {
-      await apiClient.recordSettlement({
-        groupId: group.groupId,
-        fromMemberId: tx.fromMemberId,
-        fromMemberName: tx.fromMemberName,
-        toMemberId: tx.toMemberId,
-        toMemberName: tx.toMemberName,
-        amount: tx.amount,
-      }, guestSessionId);
-    } catch { /* offline — just mark local */ }
-
+  const handleMarkPaid = (tx: Transaction, idx: number) => {
     const updated = new Set(settledIds);
     updated.add(idx);
     setSettledIds(updated);

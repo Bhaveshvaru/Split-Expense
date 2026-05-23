@@ -4,7 +4,6 @@ import { useDispatch } from 'react-redux';
 import { v4 as uuidv4 } from 'uuid';
 import { useRouter } from 'next/navigation';
 import { addGroupLocal } from '../../store/slices/groupsSlice';
-import { createGroupAsync } from '../../store/slices/groupsSlice';
 import type { AppDispatch } from '../../store';
 import type { GroupCategory } from '../../types';
 import toast from 'react-hot-toast';
@@ -21,8 +20,6 @@ export function QuickStart({ defaultCategory = 'other' }: Props) {
   const [step, setStep] = useState<1 | 2>(1);
   const [groupName, setGroupName] = useState('');
   const [members, setMembers] = useState(['', '']);
-  const [loading, setLoading] = useState(false);
-
   const addMember = () => {
     if (members.length < 10) setMembers([...members, '']);
   };
@@ -37,47 +34,30 @@ export function QuickStart({ defaultCategory = 'other' }: Props) {
     setMembers(updated);
   };
 
-  const handleCreate = async () => {
+  const handleCreate = () => {
     const validMembers = members.map(m => m.trim()).filter(Boolean);
     if (!groupName.trim()) return toast.error('Please enter a group name');
     if (validMembers.length < 2) return toast.error('Add at least 2 members');
 
-    setLoading(true);
-    try {
-      const localId = uuidv4();
-      const groupData = {
-        name: groupName.trim(),
-        category: defaultCategory,
-        currency: 'INR',
-        members: validMembers.map((name, i) => ({
-          id: uuidv4(),
-          name,
-          color: MEMBER_COLORS[i % MEMBER_COLORS.length],
-        })),
-        description: '',
-        _localId: localId,
-      };
-
-      const result = await dispatch(createGroupAsync(groupData as Parameters<typeof createGroupAsync>[0]));
-      if (createGroupAsync.fulfilled.match(result)) {
-        toast.success('Group created! 🎉');
-        router.push(`/group/${result.payload.groupId}`);
-      } else {
-        // Offline fallback — create local group with the stable localId
-        const localGroup = {
-          ...groupData,
-          groupId: localId,
-          totalExpenses: 0,
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-        };
-        dispatch(addGroupLocal(localGroup));
-        toast.success('Saved locally — will sync when online 💾');
-        router.push(`/group/${localId}`);
-      }
-    } finally {
-      setLoading(false);
-    }
+    const groupId = uuidv4();
+    const now = new Date().toISOString();
+    dispatch(addGroupLocal({
+      groupId,
+      name: groupName.trim(),
+      category: defaultCategory,
+      currency: 'INR',
+      description: '',
+      members: validMembers.map((name, i) => ({
+        id: uuidv4(),
+        name,
+        color: MEMBER_COLORS[i % MEMBER_COLORS.length],
+      })),
+      totalExpenses: 0,
+      createdAt: now,
+      updatedAt: now,
+    }));
+    toast.success('Group created! 🎉');
+    router.push(`/group/${groupId}`);
   };
 
   return (
@@ -164,17 +144,10 @@ export function QuickStart({ defaultCategory = 'other' }: Props) {
 
             <button
               onClick={handleCreate}
-              disabled={loading || members.filter(m => m.trim()).length < 2}
+              disabled={members.filter(m => m.trim()).length < 2}
               className="btn-primary w-full py-3 disabled:opacity-40 disabled:cursor-not-allowed"
             >
-              {loading ? (
-                <span className="flex items-center gap-2">
-                  <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                  Creating...
-                </span>
-              ) : (
-                '🚀 Create Group & Start Splitting'
-              )}
+              🚀 Create Group & Start Splitting
             </button>
           </div>
         )}

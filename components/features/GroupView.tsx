@@ -1,15 +1,13 @@
 'use client';
-import { useEffect, useState, useCallback } from 'react';
+import { useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useRouter } from 'next/navigation';
 import toast from 'react-hot-toast';
 import { v4 as uuidv4 } from 'uuid';
 import type { AppDispatch, RootState } from '../../store';
-import type { Group, Expense, Member } from '../../types';
-import { fetchExpenses } from '../../store/slices/expensesSlice';
-import { setCurrentGroup, updateGroupAsync, updateGroupLocal, deleteGroupAsync, removeGroupLocal } from '../../store/slices/groupsSlice';
+import type { Group, Member } from '../../types';
+import { setCurrentGroup, updateGroupLocal, removeGroupLocal } from '../../store/slices/groupsSlice';
 import { openAddExpense, openSettlement } from '../../store/slices/uiSlice';
-import { apiClient } from '../../lib/api';
 import { computeBalances, minimizeTransactions, formatCurrency } from '../../lib/settlement';
 import { isValidUPIId } from '../../lib/upi';
 import { ExpenseList } from './ExpenseList';
@@ -31,34 +29,19 @@ interface Props { groupId: string; }
 export function GroupView({ groupId }: Props) {
   const dispatch = useDispatch<AppDispatch>();
   const router = useRouter();
-  const [group, setGroup] = useState<Group | null>(null);
-  const [loadingGroup, setLoadingGroup] = useState(true);
   const [activeTab, setActiveTab] = useState<'expenses' | 'balances' | 'settings'>('expenses');
   const [copied, setCopied] = useState(false);
 
+  const group = useSelector((s: RootState) => s.groups.groups.find(g => g.groupId === groupId) ?? null);
   const expenses = useSelector((s: RootState) => s.expenses.expenses[groupId] || []);
   const showAddExpense = useSelector((s: RootState) => s.ui.showAddExpense);
   const showSettlement = useSelector((s: RootState) => s.ui.showSettlement);
-  const guestSessionId = useSelector((s: RootState) => s.user.guestSessionId);
+  const currentGroupId = useSelector((s: RootState) => s.groups.currentGroupId);
 
-  const loadGroup = useCallback(async () => {
-    setLoadingGroup(true);
-    try {
-      const data = await apiClient.getGroup(groupId);
-      setGroup(data);
-      dispatch(setCurrentGroup(groupId));
-    } catch {
-      // Try Redux store (offline/local)
-      toast.error('Could not load group from server. Using local data.');
-    } finally {
-      setLoadingGroup(false);
-    }
-  }, [groupId, dispatch]);
-
-  useEffect(() => {
-    loadGroup();
-    dispatch(fetchExpenses(groupId));
-  }, [groupId, dispatch, loadGroup]);
+  // Keep currentGroupId in sync
+  if (group && currentGroupId !== groupId) {
+    dispatch(setCurrentGroup(groupId));
+  }
 
   const copyLink = () => {
     navigator.clipboard.writeText(window.location.href);
@@ -67,7 +50,6 @@ export function GroupView({ groupId }: Props) {
     setTimeout(() => setCopied(false), 2000);
   };
 
-  if (loadingGroup) return <GroupSkeleton />;
   if (!group) return <GroupNotFound onBack={() => router.push('/')} />;
 
   const activeExpenses = expenses.filter(e => !e.isSettled);
@@ -137,7 +119,7 @@ export function GroupView({ groupId }: Props) {
         <BalanceDetailView balances={balances} transactions={transactions} currency={group.currency} members={group.members}
           onSettle={() => dispatch(openSettlement())} />
       ) : (
-        <GroupSettings group={group} onGroupUpdate={setGroup} />
+        <GroupSettings group={group} />
       )}
 
       {/* Modals */}
@@ -159,7 +141,6 @@ function BalanceDetailView({ balances, transactions, currency, members, onSettle
 }) {
   return (
     <div className="space-y-3">
-      {/* Individual Balances */}
       <div className="card p-4">
         <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-3">Individual Balances</h3>
         <div className="space-y-2">
@@ -181,7 +162,6 @@ function BalanceDetailView({ balances, transactions, currency, members, onSettle
         </div>
       </div>
 
-      {/* Transactions */}
       {transactions.length > 0 && (
         <div className="card p-4">
           <div className="flex items-center justify-between mb-3">
@@ -216,19 +196,6 @@ function BalanceDetailView({ balances, transactions, currency, members, onSettle
   );
 }
 
-function GroupSkeleton() {
-  return (
-    <div className="animate-pulse space-y-4">
-      <div className="h-8 bg-surface-800 rounded-xl w-48" />
-      <div className="h-4 bg-surface-800 rounded w-64" />
-      <div className="flex gap-2">{[...Array(3)].map((_, i) => <div key={i} className="h-8 w-20 bg-surface-800 rounded-full" />)}</div>
-      <div className="h-32 bg-surface-800 rounded-2xl" />
-      <div className="h-10 bg-surface-800 rounded-xl" />
-      {[...Array(3)].map((_, i) => <div key={i} className="h-16 bg-surface-800 rounded-2xl" />)}
-    </div>
-  );
-}
-
 function GroupNotFound({ onBack }: { onBack: () => void }) {
   return (
     <div className="text-center py-20">
@@ -249,15 +216,13 @@ const CATEGORIES = [
   { value: 'other', label: 'Other', icon: '📋' },
 ] as const;
 
-function GroupSettings({ group, onGroupUpdate }: { group: Group; onGroupUpdate: (g: Group) => void }) {
+function GroupSettings({ group }: { group: Group }) {
   const dispatch = useDispatch<AppDispatch>();
   const router = useRouter();
   const [name, setName] = useState(group.name);
   const [category, setCategory] = useState(group.category);
   const [members, setMembers] = useState<Member[]>(group.members);
   const [newMemberName, setNewMemberName] = useState('');
-  const [saving, setSaving] = useState(false);
-  const [deleting, setDeleting] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
 
   const addMember = () => {
@@ -277,39 +242,17 @@ function GroupSettings({ group, onGroupUpdate }: { group: Group; onGroupUpdate: 
     setMembers(members.filter(m => m.id !== id));
   };
 
-  const handleSave = async () => {
+  const handleSave = () => {
     if (!name.trim()) return toast.error('Group name is required');
-    setSaving(true);
     const updated: Group = { ...group, name: name.trim(), category, members, updatedAt: new Date().toISOString() };
-    try {
-      const result = await dispatch(updateGroupAsync({ groupId: group.groupId, data: updated }));
-      if (updateGroupAsync.fulfilled.match(result)) {
-        onGroupUpdate(result.payload);
-        toast.success('Group updated!');
-      } else {
-        dispatch(updateGroupLocal(updated));
-        onGroupUpdate(updated);
-        toast.success('Group updated locally!');
-      }
-    } finally {
-      setSaving(false);
-    }
+    dispatch(updateGroupLocal(updated));
+    toast.success('Group updated!');
   };
 
-  const handleDelete = async () => {
-    setDeleting(true);
-    try {
-      const result = await dispatch(deleteGroupAsync(group.groupId));
-      if (deleteGroupAsync.fulfilled.match(result)) {
-        toast.success('Group deleted');
-      } else {
-        dispatch(removeGroupLocal(group.groupId));
-        toast.success('Group deleted locally');
-      }
-      router.push('/groups');
-    } finally {
-      setDeleting(false);
-    }
+  const handleDelete = () => {
+    dispatch(removeGroupLocal(group.groupId));
+    toast.success('Group deleted');
+    router.push('/groups');
   };
 
   return (
@@ -396,13 +339,8 @@ function GroupSettings({ group, onGroupUpdate }: { group: Group; onGroupUpdate: 
       </div>
 
       {/* Save */}
-      <button onClick={handleSave} disabled={saving} className="btn-primary w-full py-3 disabled:opacity-40 disabled:cursor-not-allowed">
-        {saving ? (
-          <span className="flex items-center justify-center gap-2">
-            <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-            Saving...
-          </span>
-        ) : '💾 Save Changes'}
+      <button onClick={handleSave} className="btn-primary w-full py-3">
+        💾 Save Changes
       </button>
 
       {/* Danger Zone */}
@@ -422,10 +360,9 @@ function GroupSettings({ group, onGroupUpdate }: { group: Group; onGroupUpdate: 
               <button onClick={() => setConfirmDelete(false)} className="btn-secondary flex-1 text-sm">Cancel</button>
               <button
                 onClick={handleDelete}
-                disabled={deleting}
-                className="flex-1 py-2 rounded-xl bg-red-500/20 border border-red-500/40 text-red-400 text-sm hover:bg-red-500/30 transition-all disabled:opacity-40"
+                className="flex-1 py-2 rounded-xl bg-red-500/20 border border-red-500/40 text-red-400 text-sm hover:bg-red-500/30 transition-all"
               >
-                {deleting ? 'Deleting...' : 'Yes, Delete'}
+                Yes, Delete
               </button>
             </div>
           </div>

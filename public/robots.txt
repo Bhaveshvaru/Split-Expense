@@ -9,4 +9,4 @@ Allow: /blog
 Disallow: /group/
 Disallow: /groups
 
-Sitemap: https://split-expense.com/sitemap.xml
+Sitemap: https://split-expense.in/sitemap.xml

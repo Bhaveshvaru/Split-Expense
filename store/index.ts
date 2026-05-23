@@ -3,7 +3,6 @@ import userReducer from './slices/userSlice';
 import groupsReducer from './slices/groupsSlice';
 import expensesReducer from './slices/expensesSlice';
 import uiReducer from './slices/uiSlice';
-import syncReducer from './slices/syncSlice';
 
 const STORAGE_KEY = 'splitease_state';
 
@@ -13,7 +12,6 @@ function loadState() {
     const serialized = localStorage.getItem(STORAGE_KEY);
     if (!serialized) return undefined;
     const parsed = JSON.parse(serialized);
-    // Reset loading/error states on hydration
     if (parsed.groups) {
       parsed.groups.loading = false;
       parsed.groups.error = null;
@@ -55,7 +53,6 @@ const rootReducer = combineReducers({
   groups: groupsReducer,
   expenses: expensesReducer,
   ui: uiReducer,
-  sync: syncReducer,
 });
 
 const preloadedState = loadState();
@@ -65,7 +62,6 @@ export const store = configureStore({
   preloadedState,
 });
 
-// Subscribe to save state changes
 if (typeof window !== 'undefined') {
   let saveTimeout: NodeJS.Timeout;
   store.subscribe(() => {

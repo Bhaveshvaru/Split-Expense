@@ -1,11 +1,11 @@
 'use client';
 import { useState } from 'react';
-import { useDispatch, useSelector } from 'react-redux';
+import { useDispatch } from 'react-redux';
 import { v4 as uuidv4 } from 'uuid';
 import { useRouter } from 'next/navigation';
 import { closeAddGroup } from '../../store/slices/uiSlice';
-import { createGroupAsync, addGroupLocal } from '../../store/slices/groupsSlice';
-import type { AppDispatch, RootState } from '../../store';
+import { addGroupLocal } from '../../store/slices/groupsSlice';
+import type { AppDispatch } from '../../store';
 import type { GroupCategory } from '../../types';
 import toast from 'react-hot-toast';
 
@@ -25,7 +25,6 @@ export function CreateGroupModal() {
   const [name, setName] = useState('');
   const [category, setCategory] = useState<GroupCategory>('other');
   const [members, setMembers] = useState(['', '']);
-  const [loading, setLoading] = useState(false);
 
   const close = () => dispatch(closeAddGroup());
 
@@ -33,31 +32,33 @@ export function CreateGroupModal() {
   const removeMember = (i: number) => { if (members.length > 2) setMembers(members.filter((_, idx) => idx !== i)); };
   const updateMember = (i: number, v: string) => { const u = [...members]; u[i] = v; setMembers(u); };
 
-  const handleCreate = async () => {
+  const handleCreate = () => {
     const validMembers = members.map(m => m.trim()).filter(Boolean);
     if (!name.trim()) return toast.error('Please enter a group name');
     if (validMembers.length < 2) return toast.error('Add at least 2 members');
-    setLoading(true);
-    try {
-      const localId = uuidv4();
-      const groupData = {
-        name: name.trim(), category, currency: 'INR', description: '',
-        members: validMembers.map((n, i) => ({ id: uuidv4(), name: n, color: MEMBER_COLORS[i % MEMBER_COLORS.length] })),
-        _localId: localId,
-      };
-      const result = await dispatch(createGroupAsync(groupData as Parameters<typeof createGroupAsync>[0]));
-      if (createGroupAsync.fulfilled.match(result)) {
-        toast.success('Group created! 🎉');
-        dispatch(closeAddGroup());
-        router.push(`/group/${result.payload.groupId}`);
-      } else {
-        const localGroup = { ...groupData, groupId: localId, totalExpenses: 0, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
-        dispatch(addGroupLocal(localGroup));
-        toast.success('Saved locally — will sync when online 💾');
-        dispatch(closeAddGroup());
-        router.push(`/group/${localId}`);
-      }
-    } finally { setLoading(false); }
+
+    const groupId = uuidv4();
+    const now = new Date().toISOString();
+    const group = {
+      groupId,
+      name: name.trim(),
+      category,
+      currency: 'INR',
+      description: '',
+      members: validMembers.map((n, i) => ({
+        id: uuidv4(),
+        name: n,
+        color: MEMBER_COLORS[i % MEMBER_COLORS.length],
+      })),
+      totalExpenses: 0,
+      createdAt: now,
+      updatedAt: now,
+    };
+
+    dispatch(addGroupLocal(group));
+    toast.success('Group created! 🎉');
+    dispatch(closeAddGroup());
+    router.push(`/group/${groupId}`);
   };
 
   return (
@@ -121,9 +122,8 @@ export function CreateGroupModal() {
 
         <div className="flex gap-3 mt-5">
           <button onClick={close} className="btn-secondary flex-1">Cancel</button>
-          <button onClick={handleCreate} disabled={loading}
-            className="btn-primary flex-1 disabled:opacity-40 disabled:cursor-not-allowed">
-            {loading ? <span className="flex items-center gap-2"><span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />Creating...</span> : '🚀 Create Group'}
+          <button onClick={handleCreate} className="btn-primary flex-1">
+            🚀 Create Group
           </button>
         </div>
       </div>
